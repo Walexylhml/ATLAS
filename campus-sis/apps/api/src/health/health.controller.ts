@@ -1,7 +1,11 @@
 import { Controller, Get, Inject } from "@nestjs/common";
 import type { Pool } from "pg";
 import { PG_POOL } from "../database/database.module.js";
+import { Public } from "../authz/decorators.js";
 
+// Liveness/readiness are probed by the platform (Render/Railway) with no
+// credentials — they must bypass the global auth guard.
+@Public()
 @Controller()
 export class HealthController {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}

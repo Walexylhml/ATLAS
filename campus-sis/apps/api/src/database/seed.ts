@@ -50,21 +50,48 @@ async function run(): Promise<void> {
       );
     }
 
-    // Starter permission catalogue (grows per module).
-    const perms: Array<[string, string, string]> = [
-      ["tenant.configure", "tenant", "configure"],
-      ["person.read", "person", "read"],
-      ["person.write", "person", "write"],
-      ["account.manage", "account", "manage"],
-      ["role.assign", "role", "assign"],
-      ["audit.read", "audit", "read"],
+    // Starter permission catalogue (grows per module). The 4th element is an
+    // optional relationship predicate baked onto the permission (ABAC).
+    const perms: Array<[string, string, string, string | null]> = [
+      ["tenant.configure", "tenant", "configure", null],
+      ["person.read", "person", "read", null],
+      ["person.write", "person", "write", null],
+      ["person.read.child", "person", "read", "is_my_child"],
+      ["account.manage", "account", "manage", null],
+      ["role.assign", "role", "assign", null],
+      ["audit.read", "audit", "read", null],
     ];
-    for (const [key, resource, action] of perms) {
+    for (const [key, resource, action, predicate] of perms) {
       await client.query(
-        `INSERT INTO permission (id, key, resource, action)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO permission (id, key, resource, action, relationship_predicate)
+         VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (key) DO NOTHING`,
-        [newId(), key, resource, action],
+        [newId(), key, resource, action, predicate],
+      );
+    }
+
+    // Attach permissions to the system role templates (role_permission is
+    // reference data: no tenant_id, platform context). Tenants inherit these
+    // when they clone a template; custom roles compose from the same catalogue.
+    const grants: Array<[string, string[]]> = [
+      [
+        "institution_admin",
+        ["tenant.configure", "person.read", "person.write", "account.manage", "role.assign", "audit.read"],
+      ],
+      ["registrar", ["person.read", "person.write", "audit.read"]],
+      ["bursar", ["person.read"]],
+      ["lecturer", ["person.read"]],
+      ["student", ["person.read"]],
+      ["parent", ["person.read.child"]],
+    ];
+    for (const [roleKey, permKeys] of grants) {
+      await client.query(
+        `INSERT INTO role_permission (role_id, permission_id)
+         SELECT r.id, p.id
+         FROM role r, permission p
+         WHERE r.tenant_id IS NULL AND r.key = $1 AND p.key = ANY($2::text[])
+         ON CONFLICT (role_id, permission_id) DO NOTHING`,
+        [roleKey, permKeys],
       );
     }
 
@@ -87,46 +114,121 @@ async function run(): Promise<void> {
 
   // --- Tenant-scoped rows for the demo tenant (RLS in force) ---
   await withPtenant(pool, tenantId, async (client) => {
-    // A person + admin account.
-    const existing = await client.query<{ id: string }>(
-      `SELECT id FROM person WHERE tenant_id = $1 AND primary_email = 'admin@demo-uni.edu.ng'`,
-      [tenantId],
-    );
-    let personId = existing.rows[0]?.id;
-    if (!personId) {
-      personId = newId();
-      await client.query(
-        `INSERT INTO person (id, tenant_id, surname, first_name, primary_email, status)
-         VALUES ($1, $2, 'Admin', 'Demo', 'admin@demo-uni.edu.ng', 'active')`,
-        [personId, tenantId],
+    // Idempotent helpers so the three demo users read cleanly.
+    const ensurePerson = async (
+      email: string,
+      surname: string,
+      firstName: string,
+      phone: string | null,
+    ): Promise<string> => {
+      const found = await client.query<{ id: string }>(
+        `SELECT id FROM person WHERE tenant_id = $1 AND primary_email = $2`,
+        [tenantId, email],
       );
-    }
+      if (found.rows[0]) return found.rows[0].id;
+      const id = newId();
+      await client.query(
+        `INSERT INTO person (id, tenant_id, surname, first_name, primary_email, primary_phone, status)
+         VALUES ($1, $2, $3, $4, $5, $6, 'active')`,
+        [id, tenantId, surname, firstName, email, phone],
+      );
+      return id;
+    };
 
-    const acct = await client.query<{ id: string }>(
-      `INSERT INTO user_account (id, tenant_id, person_id, username, email, auth_method, status)
-       VALUES ($1, $2, $3, 'demo.admin', 'admin@demo-uni.edu.ng', 'password_otp', 'active')
-       ON CONFLICT (tenant_id, username) DO UPDATE SET username = EXCLUDED.username
-       RETURNING id`,
-      [newId(), tenantId, personId],
-    );
-    const accountId = acct.rows[0]!.id;
+    const ensureAccount = async (
+      personId: string,
+      username: string,
+      email: string,
+      phone: string,
+    ): Promise<string> => {
+      const acct = await client.query<{ id: string }>(
+        `INSERT INTO user_account (id, tenant_id, person_id, username, email, phone, auth_method, status)
+         VALUES ($1, $2, $3, $4, $5, $6, 'otp', 'active')
+         ON CONFLICT (tenant_id, username) DO UPDATE SET username = EXCLUDED.username
+         RETURNING id`,
+        [newId(), tenantId, personId, username, email, phone],
+      );
+      return acct.rows[0]!.id;
+    };
 
-    // Assign the institution_admin template role, tenant-scoped.
-    const roleRow = await client.query<{ id: string }>(
-      `SELECT id FROM role WHERE key = 'institution_admin' AND tenant_id IS NULL`,
-    );
-    const roleId = roleRow.rows[0]?.id;
-    if (roleId) {
+    const assignRole = async (
+      accountId: string,
+      roleKey: string,
+      scopeType: "tenant" | "self",
+    ): Promise<void> => {
+      const roleRow = await client.query<{ id: string }>(
+        `SELECT id FROM role WHERE key = $1 AND tenant_id IS NULL`,
+        [roleKey],
+      );
+      const roleId = roleRow.rows[0]?.id;
+      if (!roleId) return;
       await client.query(
         `INSERT INTO role_assignment (id, tenant_id, user_account_id, role_id, scope_type, status)
-         SELECT $1, $2, $3, $4, 'tenant', 'active'
+         SELECT $1, $2, $3, $4, $5, 'active'
          WHERE NOT EXISTS (
            SELECT 1 FROM role_assignment
            WHERE tenant_id = $2 AND user_account_id = $3 AND role_id = $4
          )`,
-        [newId(), tenantId, accountId, roleId],
+        [newId(), tenantId, accountId, roleId, scopeType],
       );
-    }
+    };
+
+    // Institution admin (tenant scope) — the school's root user.
+    const adminPerson = await ensurePerson(
+      "admin@demo-uni.edu.ng",
+      "Admin",
+      "Demo",
+      "+2348000000001",
+    );
+    const adminAccount = await ensureAccount(
+      adminPerson,
+      "demo.admin",
+      "admin@demo-uni.edu.ng",
+      "+2348000000001",
+    );
+    await assignRole(adminAccount, "institution_admin", "tenant");
+
+    // Student (self scope) — can read only their own person record.
+    const studentPerson = await ensurePerson(
+      "student@demo-uni.edu.ng",
+      "Okafor",
+      "Chidi",
+      "+2348000000002",
+    );
+    const studentAccount = await ensureAccount(
+      studentPerson,
+      "demo.student",
+      "student@demo-uni.edu.ng",
+      "+2348000000002",
+    );
+    await assignRole(studentAccount, "student", "self");
+
+    // Parent (tenant scope, narrowed by the is_my_child predicate) + the
+    // consented guardian link that ABAC checks against.
+    const parentPerson = await ensurePerson(
+      "parent@demo-uni.edu.ng",
+      "Okafor",
+      "Ngozi",
+      "+2348000000003",
+    );
+    const parentAccount = await ensureAccount(
+      parentPerson,
+      "demo.parent",
+      "parent@demo-uni.edu.ng",
+      "+2348000000003",
+    );
+    await assignRole(parentAccount, "parent", "tenant");
+
+    await client.query(
+      `INSERT INTO relationship
+         (id, tenant_id, from_person_id, to_person_id, type, academic_scope, financial_scope, consent_state)
+       SELECT $1, $2, $3, $4, 'parent', true, true, 'granted'
+       WHERE NOT EXISTS (
+         SELECT 1 FROM relationship
+         WHERE tenant_id = $2 AND from_person_id = $3 AND to_person_id = $4 AND type = 'parent'
+       )`,
+      [newId(), tenantId, parentPerson, studentPerson],
+    );
   });
 
   console.log(`✔ seed complete — demo tenant ${tenantId} (short_name: ${DEMO_TENANT_SHORT})`);
