@@ -33,13 +33,20 @@ export class AuthzService {
 
     // A higher-level grant (school/faculty) covers units nested beneath it, so
     // enrich the target with its academic ancestry (programme→dept→faculty→school)
-    // and let a simple id match at the grant's level decide containment.
-    const needsAncestry = candidates.some((g) =>
-      ACADEMIC_SCOPES.includes(g.scopeType),
+    // and let a simple id match at the grant's level decide containment. A self
+    // grant also benefits: resolving a studentId surfaces the owner's personId.
+    const needsAncestry = candidates.some(
+      (g) => ACADEMIC_SCOPES.includes(g.scopeType) || g.scopeType === "self",
     );
     const resolved =
       needsAncestry &&
-      (target.programmeId || target.departmentId || target.facultyId || target.schoolId)
+      (target.programmeId ||
+        target.departmentId ||
+        target.facultyId ||
+        target.schoolId ||
+        target.personId ||
+        target.studentId ||
+        target.courseId)
         ? await this.resolveAcademicAncestry(principal.tenantId, target)
         : target;
 
@@ -93,10 +100,11 @@ export class AuthzService {
 
   /**
    * Fill a target's academic ancestry so containment can be decided by id match.
-   * Given any one of programme/department/faculty, resolves the units above it
-   * (a programme sits in a department, in a faculty, maybe in a school). A faculty
-   * directly under the tenant has a null school, which simply never matches a
-   * school-scoped grant.
+   * Given a person (resolved through their student record), programme, department
+   * or faculty, resolves the units above it (a programme sits in a department, in
+   * a faculty, maybe in a school). A faculty directly under the tenant has a null
+   * school, which simply never matches a school-scoped grant. A person with no
+   * student record resolves to nothing — an academic-scoped grant won't cover them.
    */
   private async resolveAcademicAncestry(
     tenantId: string,
@@ -107,14 +115,55 @@ export class AuthzService {
       const first = <T>(r: unknown): T | undefined =>
         (r as { rows: T[] }).rows[0];
 
-      if (target.programmeId) {
+      // Resolve the narrowest unit the target names, deriving a programme (for a
+      // student/person) or a department (for a course) to anchor the cascade.
+      let programmeId = target.programmeId;
+      let departmentId = target.departmentId;
+      const unresolved = () => !programmeId && !departmentId && !target.facultyId;
+
+      if (unresolved() && target.studentId) {
+        const s = first<{ programme_id: string; person_id: string }>(
+          await db.execute(sql`
+            SELECT programme_id, person_id FROM student
+            WHERE tenant_id = ${tenantId} AND id = ${target.studentId} AND deleted_at IS NULL
+            LIMIT 1
+          `),
+        );
+        if (s) {
+          programmeId = out.programmeId ??= s.programme_id;
+          // Surface the person so a self-scoped grant lets a student read their own record.
+          out.personId ??= s.person_id;
+        }
+      }
+      if (unresolved() && target.personId) {
+        const s = first<{ programme_id: string }>(
+          await db.execute(sql`
+            SELECT programme_id FROM student
+            WHERE tenant_id = ${tenantId} AND person_id = ${target.personId} AND deleted_at IS NULL
+            LIMIT 1
+          `),
+        );
+        if (s) programmeId = out.programmeId ??= s.programme_id;
+      }
+      if (unresolved() && target.courseId) {
+        const c = first<{ department_id: string }>(
+          await db.execute(sql`
+            SELECT department_id FROM course
+            WHERE tenant_id = ${tenantId} AND id = ${target.courseId} AND deleted_at IS NULL
+            LIMIT 1
+          `),
+        );
+        if (c) departmentId = out.departmentId ??= c.department_id;
+      }
+
+      if (programmeId) {
         const row = first<AncestryRow>(
           await db.execute(sql`
             SELECT d.id AS department_id, f.id AS faculty_id, f.school_id AS school_id
             FROM programme p
             JOIN department d ON d.id = p.department_id
             JOIN faculty f    ON f.id = d.faculty_id
-            WHERE p.id = ${target.programmeId} AND p.tenant_id = ${tenantId}
+            WHERE p.id = ${programmeId} AND p.tenant_id = ${tenantId}
             LIMIT 1
           `),
         );
@@ -123,13 +172,13 @@ export class AuthzService {
           out.facultyId ??= row.faculty_id ?? undefined;
           out.schoolId ??= row.school_id ?? undefined;
         }
-      } else if (target.departmentId) {
+      } else if (departmentId) {
         const row = first<AncestryRow>(
           await db.execute(sql`
             SELECT f.id AS faculty_id, f.school_id AS school_id
             FROM department d
             JOIN faculty f ON f.id = d.faculty_id
-            WHERE d.id = ${target.departmentId} AND d.tenant_id = ${tenantId}
+            WHERE d.id = ${departmentId} AND d.tenant_id = ${tenantId}
             LIMIT 1
           `),
         );
@@ -273,7 +322,7 @@ function matchUnit(
   if (!targetUnitId) {
     return {
       ok: false,
-      reason: `${level}-scoped grant cannot resolve this target (no ${level} placement; person-level academic scope lands with Phase 1 student records)`,
+      reason: `${level}-scoped grant does not cover this target (no ${level} placement)`,
     };
   }
   return targetUnitId === scopeRefId

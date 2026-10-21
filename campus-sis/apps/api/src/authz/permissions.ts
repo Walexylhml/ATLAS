@@ -48,6 +48,14 @@ export const PERMISSIONS = {
   ACADEMIC_READ: "academic.read",
   /** Create/edit academic structure (schools, faculties, departments, programmes). */
   ACADEMIC_MANAGE: "academic.manage",
+  /** Read student records (scope-gated to the reader's slice). */
+  STUDENT_READ: "student.read",
+  /** Enrol/update student records. */
+  STUDENT_MANAGE: "student.manage",
+  /** Read the course catalogue. */
+  COURSE_READ: "course.read",
+  /** Create/edit courses in the catalogue. */
+  COURSE_MANAGE: "course.manage",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -68,6 +76,10 @@ export interface AccessTarget {
   facultyId?: string;
   departmentId?: string;
   programmeId?: string;
+  /** A student — resolved to their programme's ancestry for scope. */
+  studentId?: string;
+  /** A course — resolved to its department's ancestry for scope. */
+  courseId?: string;
 }
 
 export interface AuthzDecision {
