@@ -58,5 +58,7 @@ function buildTarget(
   if (options.facultyIdParam) target.facultyId = params[options.facultyIdParam];
   if (options.departmentIdParam) target.departmentId = params[options.departmentIdParam];
   if (options.programmeIdParam) target.programmeId = params[options.programmeIdParam];
+  if (options.studentIdParam) target.studentId = params[options.studentIdParam];
+  if (options.courseIdParam) target.courseId = params[options.courseIdParam];
   return target;
 }

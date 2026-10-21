@@ -17,6 +17,8 @@ export interface RequirePermissionOptions {
   facultyIdParam?: string;
   departmentIdParam?: string;
   programmeIdParam?: string;
+  studentIdParam?: string;
+  courseIdParam?: string;
 }
 
 export const RequirePermission = (

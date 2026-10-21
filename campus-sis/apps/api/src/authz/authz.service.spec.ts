@@ -122,6 +122,30 @@ describe("authz evaluate()", () => {
     expect(d.reason).toMatch(/later phase/);
   });
 
+  it("faculty scope covers a student/person placed in that faculty (ancestry resolved)", () => {
+    // authorize() resolves a person/student target through their programme before evaluate().
+    const g = [grant({ scopeType: "faculty", scopeRefId: "fac-1" })];
+    expect(
+      evaluate(g, { personId: "stu", departmentId: "d1", facultyId: "fac-1" }, principal, noFacts)
+        .allowed,
+    ).toBe(true);
+    expect(
+      evaluate(g, { personId: "stu", departmentId: "d9", facultyId: "fac-2" }, principal, noFacts)
+        .allowed,
+    ).toBe(false);
+  });
+
+  it("self scope lets a student read their own record (personId surfaced from studentId)", () => {
+    const g = [grant({ scopeType: "self" })];
+    // resolveAcademicAncestry surfaces personId from the studentId.
+    expect(
+      evaluate(g, { studentId: "s1", personId: "person-self" }, principal, noFacts).allowed,
+    ).toBe(true);
+    expect(
+      evaluate(g, { studentId: "s2", personId: "another" }, principal, noFacts).allowed,
+    ).toBe(false);
+  });
+
   it("allows when any one candidate grant passes (broad wins over narrow)", () => {
     const grants = [
       grant({ scopeType: "self" }), // would deny for another person

@@ -36,7 +36,7 @@ supporting specifications needed to pick the project up at any time in the futur
 | **Phase** | Phase 0 — Foundation (build started) |
 | **Team** | Whale (Adebayo Olawale) — founder/product; Claude — co-builder |
 | **Last updated** | 2026-10-20 |
-| **Next milestone** | Academic structure (School→Faculty→Dept) + scope containment + grading config landed → curriculum, course registration & student records (Phase 1) next |
+| **Next milestone** | Phase 1 started: student records + course catalogue landed (person-level scope now resolves) → course registration & student financials next |
 
 > **Build started.** Stack locked (NestJS/TS · PostgreSQL+RLS · Render · Flutterwave — see
 > [`docs/adr/`](docs/adr/)). The runnable code lives in [`apps/api`](apps/api/); what to open

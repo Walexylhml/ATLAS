@@ -6,6 +6,8 @@ import { AuthModule } from "./auth/auth.module.js";
 import { AuthzModule } from "./authz/authz.module.js";
 import { DirectoryModule } from "./directory/directory.module.js";
 import { AcademicModule } from "./academic/academic.module.js";
+import { StudentsModule } from "./students/students.module.js";
+import { CoursesModule } from "./courses/courses.module.js";
 import { ConfigModule } from "./config/config.module.js";
 import { TenantMiddleware } from "./tenancy/tenant.middleware.js";
 import { loadEnv } from "./config/env.js";
@@ -38,6 +40,8 @@ const env = loadEnv();
     AuthModule,
     DirectoryModule,
     AcademicModule,
+    StudentsModule,
+    CoursesModule,
     HealthModule,
   ],
 })

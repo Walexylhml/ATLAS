@@ -48,6 +48,19 @@ export const otpPurposeEnum = pgEnum("otp_purpose", ["login", "step_up", "enrol"
 
 // Academic
 export const semesterOrdinalEnum = pgEnum("semester_ordinal", ["first", "second"]);
+export const courseTypeEnum = pgEnum("course_type", [
+  "core",
+  "required",
+  "elective",
+  "general_studies",
+]);
+export const studentStatusEnum = pgEnum("student_status", [
+  "active",
+  "deferred",
+  "withdrawn",
+  "graduated",
+  "suspended",
+]);
 
 // Cross-cutting
 export const actorTypeEnum = pgEnum("actor_type", ["platform", "user", "system"]);
