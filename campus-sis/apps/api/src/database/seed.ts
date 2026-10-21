@@ -71,6 +71,9 @@ async function run(): Promise<void> {
       ["student.manage", "student", "manage", null],
       ["course.read", "course", "read", null],
       ["course.manage", "course", "manage", null],
+      ["offering.manage", "offering", "manage", null],
+      ["registration.register", "registration", "register", null],
+      ["registration.read", "registration", "read", null],
     ];
     for (const [key, resource, action, predicate] of perms) {
       await client.query(
@@ -101,20 +104,23 @@ async function run(): Promise<void> {
           "student.read",
           "student.manage",
           "course.manage",
+          "offering.manage",
+          "registration.register",
+          "registration.read",
         ],
       ],
       [
         "registrar",
-        ["person.read", "person.write", "audit.read", "academic.manage", "student.read", "student.manage", "course.manage"],
+        ["person.read", "person.write", "audit.read", "academic.manage", "student.read", "student.manage", "course.manage", "offering.manage", "registration.register", "registration.read"],
       ],
       ["bursar", ["person.read"]],
       // Manage is scope-gated: provost over a school, dean over a faculty, HOD over a department.
-      ["provost", ["person.read", "academic.manage", "student.read", "student.manage", "course.manage"]],
-      ["dean", ["person.read", "academic.manage", "student.read", "student.manage", "course.manage"]],
-      ["hod", ["person.read", "academic.manage", "student.read", "student.manage", "course.manage"]],
+      ["provost", ["person.read", "academic.manage", "student.read", "student.manage", "course.manage", "offering.manage", "registration.register", "registration.read"]],
+      ["dean", ["person.read", "academic.manage", "student.read", "student.manage", "course.manage", "offering.manage", "registration.register", "registration.read"]],
+      ["hod", ["person.read", "academic.manage", "student.read", "student.manage", "course.manage", "offering.manage", "registration.register", "registration.read"]],
       ["lecturer", ["person.read"]],
-      // A student may read their own record (self scope).
-      ["student", ["person.read", "student.read"]],
+      // A student may read their own record and self-register for offerings (self scope).
+      ["student", ["person.read", "student.read", "registration.register", "registration.read"]],
       ["parent", ["person.read.child"]],
     ];
     for (const [roleKey, permKeys] of grants) {
@@ -435,6 +441,11 @@ async function run(): Promise<void> {
        WHERE NOT EXISTS (SELECT 1 FROM student WHERE tenant_id = $2 AND person_id = $3)`,
       [newId(), tenantId, studentPerson, cscProg, session],
     );
+    const studentRow = await client.query<{ id: string }>(
+      `SELECT id FROM student WHERE tenant_id = $1 AND person_id = $2`,
+      [tenantId, studentPerson],
+    );
+    const demoStudentId = studentRow.rows[0]?.id;
 
     // --- Course catalogue: a few CSC/MTH courses ---
     const courses: Array<[string, string, string, number, number, string, string]> = [
@@ -442,12 +453,35 @@ async function run(): Promise<void> {
       [csc, "CSC102", "Introduction to Programming", 3, 100, "second", "core"],
       [mth, "MTH101", "Elementary Mathematics I", 3, 100, "first", "core"],
     ];
+    const courseIds: Record<string, string> = {};
     for (const [dept, code, title, units, level, sem, type] of courses) {
-      await client.query(
+      const r = await one(
         `INSERT INTO course (id, tenant_id, department_id, code, title, credit_units, level, semester, type)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         ON CONFLICT (tenant_id, code) DO UPDATE SET title = EXCLUDED.title`,
+         ON CONFLICT (tenant_id, code) DO UPDATE SET title = EXCLUDED.title RETURNING id`,
         [newId(), tenantId, dept, code, title, units, level, sem, type],
+      );
+      courseIds[code] = r;
+    }
+
+    // --- Course offerings for the current session + a demo registration ---
+    const offeringIds: Record<string, string> = {};
+    for (const [, code, , , , sem] of courses) {
+      offeringIds[code] = await one(
+        `INSERT INTO course_offering (id, tenant_id, course_id, session_id, semester, status)
+         VALUES ($1, $2, $3, $4, $5, 'open')
+         ON CONFLICT (course_id, session_id, semester) DO UPDATE SET status = 'open' RETURNING id`,
+        [newId(), tenantId, courseIds[code], session, sem],
+      );
+    }
+    if (demoStudentId) {
+      await client.query(
+        `INSERT INTO course_registration (id, tenant_id, student_id, offering_id)
+         SELECT $1, $2, $3, $4
+         WHERE NOT EXISTS (
+           SELECT 1 FROM course_registration WHERE tenant_id = $2 AND student_id = $3 AND offering_id = $4
+         )`,
+        [newId(), tenantId, demoStudentId, offeringIds["CSC101"]],
       );
     }
   });
