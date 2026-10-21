@@ -1,0 +1,21 @@
+# Local development dependencies only. The app itself runs via `pnpm dev`.
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: atlas-db
+    environment:
+      POSTGRES_DB: atlas
+      POSTGRES_USER: atlas_app
+      POSTGRES_PASSWORD: atlas_app
+    ports:
+      - "5432:5432"
+    volumes:
+      - atlas-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U atlas_app -d atlas"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  atlas-db-data:

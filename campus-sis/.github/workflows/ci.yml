@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: lint · typecheck · test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: campus-sis
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: atlas
+          POSTGRES_USER: atlas_app
+          POSTGRES_PASSWORD: atlas_app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atlas_app -d atlas"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://atlas_app:atlas_app@localhost:5432/atlas
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: campus-sis/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm --filter @atlas/api lint
+
+      - name: Typecheck
+        run: pnpm --filter @atlas/api typecheck
+
+      - name: Build
+        run: pnpm --filter @atlas/api build
+
+      - name: Migrate
+        run: pnpm --filter @atlas/api db:migrate
+
+      - name: Test (incl. RLS isolation against Postgres)
+        run: pnpm --filter @atlas/api test
