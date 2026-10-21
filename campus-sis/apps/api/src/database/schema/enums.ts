@@ -32,6 +32,7 @@ export const accountStatusEnum = pgEnum("account_status", [
 export const authMethodEnum = pgEnum("auth_method", ["password", "otp", "password_otp", "sso"]);
 export const scopeTypeEnum = pgEnum("scope_type", [
   "tenant",
+  "school",
   "faculty",
   "department",
   "programme",
@@ -44,6 +45,9 @@ export const indicatorPolarityEnum = pgEnum("indicator_polarity", ["positive", "
 // Auth
 export const otpChannelEnum = pgEnum("otp_channel", ["sms", "email"]);
 export const otpPurposeEnum = pgEnum("otp_purpose", ["login", "step_up", "enrol"]);
+
+// Academic
+export const semesterOrdinalEnum = pgEnum("semester_ordinal", ["first", "second"]);
 
 // Cross-cutting
 export const actorTypeEnum = pgEnum("actor_type", ["platform", "user", "system"]);
