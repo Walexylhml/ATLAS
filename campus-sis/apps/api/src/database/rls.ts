@@ -8,7 +8,7 @@ export interface TenantContext {
   actorId?: string;
 }
 
-type TxDb = NodePgDatabase<typeof schema>;
+export type TxDb = NodePgDatabase<typeof schema>;
 
 /**
  * Run `work` inside a transaction with the tenant's RLS session variables set.
