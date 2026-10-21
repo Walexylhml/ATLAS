@@ -5,6 +5,8 @@ import { HealthModule } from "./health/health.module.js";
 import { AuthModule } from "./auth/auth.module.js";
 import { AuthzModule } from "./authz/authz.module.js";
 import { DirectoryModule } from "./directory/directory.module.js";
+import { AcademicModule } from "./academic/academic.module.js";
+import { ConfigModule } from "./config/config.module.js";
 import { TenantMiddleware } from "./tenancy/tenant.middleware.js";
 import { loadEnv } from "./config/env.js";
 import { currentContext } from "./tenancy/tenant-context.js";
@@ -31,9 +33,11 @@ const env = loadEnv();
       },
     }),
     DatabaseModule,
+    ConfigModule,
     AuthzModule,
     AuthModule,
     DirectoryModule,
+    AcademicModule,
     HealthModule,
   ],
 })
