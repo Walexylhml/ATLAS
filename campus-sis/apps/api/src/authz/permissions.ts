@@ -56,6 +56,12 @@ export const PERMISSIONS = {
   COURSE_READ: "course.read",
   /** Create/edit courses in the catalogue. */
   COURSE_MANAGE: "course.manage",
+  /** Create/edit course offerings (a course run in a session). */
+  OFFERING_MANAGE: "offering.manage",
+  /** Register/drop a student for an offering (students self-register). */
+  REGISTRATION_REGISTER: "registration.register",
+  /** Read a student's registrations. */
+  REGISTRATION_READ: "registration.read",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
