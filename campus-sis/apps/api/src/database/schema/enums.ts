@@ -61,6 +61,12 @@ export const studentStatusEnum = pgEnum("student_status", [
   "graduated",
   "suspended",
 ]);
+export const offeringStatusEnum = pgEnum("offering_status", ["open", "closed"]);
+export const registrationStatusEnum = pgEnum("registration_status", [
+  "registered",
+  "dropped",
+  "approved",
+]);
 
 // Cross-cutting
 export const actorTypeEnum = pgEnum("actor_type", ["platform", "user", "system"]);
