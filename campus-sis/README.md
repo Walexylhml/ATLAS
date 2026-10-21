@@ -36,7 +36,7 @@ supporting specifications needed to pick the project up at any time in the futur
 | **Phase** | Phase 0 — Foundation (build started) |
 | **Team** | Whale (Adebayo Olawale) — founder/product; Claude — co-builder |
 | **Last updated** | 2026-10-20 |
-| **Next milestone** | Phase 0 spine merged → auth (OTP) + RBAC guards → academic structure & grading |
+| **Next milestone** | Auth (OTP) + RBAC/ABAC guards landed → academic structure & grading next |
 
 > **Build started.** Stack locked (NestJS/TS · PostgreSQL+RLS · Render · Flutterwave — see
 > [`docs/adr/`](docs/adr/)). The runnable code lives in [`apps/api`](apps/api/); what to open
