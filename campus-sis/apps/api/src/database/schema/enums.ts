@@ -41,6 +41,10 @@ export const relationshipTypeEnum = pgEnum("relationship_type", ["parent", "guar
 export const consentStateEnum = pgEnum("consent_state", ["pending", "granted", "revoked"]);
 export const indicatorPolarityEnum = pgEnum("indicator_polarity", ["positive", "negative"]);
 
+// Auth
+export const otpChannelEnum = pgEnum("otp_channel", ["sms", "email"]);
+export const otpPurposeEnum = pgEnum("otp_purpose", ["login", "step_up", "enrol"]);
+
 // Cross-cutting
 export const actorTypeEnum = pgEnum("actor_type", ["platform", "user", "system"]);
 export const outboxStatusEnum = pgEnum("outbox_status", ["pending", "dispatched", "failed"]);
