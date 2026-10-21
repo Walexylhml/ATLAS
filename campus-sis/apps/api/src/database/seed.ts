@@ -67,6 +67,10 @@ async function run(): Promise<void> {
       ["audit.read", "audit", "read", null],
       ["academic.read", "academic", "read", null],
       ["academic.manage", "academic", "manage", null],
+      ["student.read", "student", "read", null],
+      ["student.manage", "student", "manage", null],
+      ["course.read", "course", "read", null],
+      ["course.manage", "course", "manage", null],
     ];
     for (const [key, resource, action, predicate] of perms) {
       await client.query(
@@ -81,8 +85,9 @@ async function run(): Promise<void> {
     // reference data: no tenant_id, platform context). Tenants inherit these
     // when they clone a template; custom roles compose from the same catalogue.
     const grants: Array<[string, string[]]> = [
-      // Reading academic structure/calendar/grading is tenant-wide reference data.
-      ["member", ["academic.read"]],
+      // Reading academic structure/grading and the course catalogue is tenant-wide
+      // reference data; student records are PII and stay scope-gated.
+      ["member", ["academic.read", "course.read"]],
       [
         "institution_admin",
         [
@@ -93,16 +98,23 @@ async function run(): Promise<void> {
           "role.assign",
           "audit.read",
           "academic.manage",
+          "student.read",
+          "student.manage",
+          "course.manage",
         ],
       ],
-      ["registrar", ["person.read", "person.write", "audit.read", "academic.manage"]],
+      [
+        "registrar",
+        ["person.read", "person.write", "audit.read", "academic.manage", "student.read", "student.manage", "course.manage"],
+      ],
       ["bursar", ["person.read"]],
       // Manage is scope-gated: provost over a school, dean over a faculty, HOD over a department.
-      ["provost", ["person.read", "academic.manage"]],
-      ["dean", ["person.read", "academic.manage"]],
-      ["hod", ["person.read", "academic.manage"]],
+      ["provost", ["person.read", "academic.manage", "student.read", "student.manage", "course.manage"]],
+      ["dean", ["person.read", "academic.manage", "student.read", "student.manage", "course.manage"]],
+      ["hod", ["person.read", "academic.manage", "student.read", "student.manage", "course.manage"]],
       ["lecturer", ["person.read"]],
-      ["student", ["person.read"]],
+      // A student may read their own record (self scope).
+      ["student", ["person.read", "student.read"]],
       ["parent", ["person.read.child"]],
     ];
     for (const [roleKey, permKeys] of grants) {
@@ -300,7 +312,7 @@ async function run(): Promise<void> {
     const csc = await upsertDept(phs, "CSC", "Department of Computer Science");
     const mth = await upsertDept(phs, "MTH", "Department of Mathematics");
     const eee = await upsertDept(feng, "EEE", "Department of Electrical & Electronic Engineering");
-    await upsertProg(csc, "CSC-BSC", "B.Sc. Computer Science", "B.Sc.", 4, 400);
+    const cscProg = await upsertProg(csc, "CSC-BSC", "B.Sc. Computer Science", "B.Sc.", 4, 400);
     await upsertProg(mth, "MTH-BSC", "B.Sc. Mathematics", "B.Sc.", 4, 400);
     await upsertProg(eee, "EEE-BENG", "B.Eng. Electrical Engineering", "B.Eng.", 5, 500);
 
@@ -413,6 +425,29 @@ async function run(): Promise<void> {
            SELECT 1 FROM config WHERE tenant_id = $2 AND namespace = $3 AND key = $4 AND effective_to IS NULL
          )`,
         [newId(), tenantId, ns, key, value],
+      );
+    }
+
+    // --- Student record: enrol the demo student into B.Sc. Computer Science ---
+    await client.query(
+      `INSERT INTO student (id, tenant_id, person_id, matric_no, programme_id, current_level, entry_session_id)
+       SELECT $1, $2, $3, 'CSC/2025/001', $4, 100, $5
+       WHERE NOT EXISTS (SELECT 1 FROM student WHERE tenant_id = $2 AND person_id = $3)`,
+      [newId(), tenantId, studentPerson, cscProg, session],
+    );
+
+    // --- Course catalogue: a few CSC/MTH courses ---
+    const courses: Array<[string, string, string, number, number, string, string]> = [
+      [csc, "CSC101", "Introduction to Computer Science", 3, 100, "first", "core"],
+      [csc, "CSC102", "Introduction to Programming", 3, 100, "second", "core"],
+      [mth, "MTH101", "Elementary Mathematics I", 3, 100, "first", "core"],
+    ];
+    for (const [dept, code, title, units, level, sem, type] of courses) {
+      await client.query(
+        `INSERT INTO course (id, tenant_id, department_id, code, title, credit_units, level, semester, type)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT (tenant_id, code) DO UPDATE SET title = EXCLUDED.title`,
+        [newId(), tenantId, dept, code, title, units, level, sem, type],
       );
     }
   });
