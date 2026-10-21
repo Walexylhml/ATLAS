@@ -62,6 +62,12 @@ export const PERMISSIONS = {
   REGISTRATION_REGISTER: "registration.register",
   /** Read a student's registrations. */
   REGISTRATION_READ: "registration.read",
+  /** Read invoices and ledger for a student. */
+  FINANCE_READ: "finance.read",
+  /** Manage fee structures and issue invoices. */
+  FINANCE_MANAGE: "finance.manage",
+  /** Initiate a payment against an invoice (students pay their own). */
+  PAYMENT_INITIATE: "payment.initiate",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
