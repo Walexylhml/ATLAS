@@ -36,7 +36,7 @@ supporting specifications needed to pick the project up at any time in the futur
 | **Phase** | Phase 0 — Foundation (build started) |
 | **Team** | Whale (Adebayo Olawale) — founder/product; Claude — co-builder |
 | **Last updated** | 2026-10-20 |
-| **Next milestone** | Phase 1: student records, course catalogue & course registration (offerings + enrol/drop) landed → student financials (fees, invoices, payments) next |
+| **Next milestone** | Phase 1 MVP: student financials — fees, invoices, append-only ledger, Flutterwave payments + webhook reconciliation landed → holds gating registration, reconciliation reporting & student PWA next |
 
 > **Build started.** Stack locked (NestJS/TS · PostgreSQL+RLS · Render · Flutterwave — see
 > [`docs/adr/`](docs/adr/)). The runnable code lives in [`apps/api`](apps/api/); what to open
