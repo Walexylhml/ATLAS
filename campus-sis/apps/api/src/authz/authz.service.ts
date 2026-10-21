@@ -31,16 +31,28 @@ export class AuthzService {
       return { allowed: false, reason: `no grant for '${permission}'` };
     }
 
+    // A higher-level grant (school/faculty) covers units nested beneath it, so
+    // enrich the target with its academic ancestry (programme→dept→faculty→school)
+    // and let a simple id match at the grant's level decide containment.
+    const needsAncestry = candidates.some((g) =>
+      ACADEMIC_SCOPES.includes(g.scopeType),
+    );
+    const resolved =
+      needsAncestry &&
+      (target.programmeId || target.departmentId || target.facultyId || target.schoolId)
+        ? await this.resolveAcademicAncestry(principal.tenantId, target)
+        : target;
+
     // Resolve only the facts the candidate grants actually need.
     const needsChild = candidates.some((g) => g.relationshipPredicate === "is_my_child");
     const facts: ResolvedFacts = {
       isConsentedChild:
-        needsChild && target.personId
-          ? await this.hasConsentedGuardianLink(principal, target.personId)
+        needsChild && resolved.personId
+          ? await this.hasConsentedGuardianLink(principal, resolved.personId)
           : false,
     };
 
-    return evaluate(candidates, target, principal, facts);
+    return evaluate(candidates, resolved, principal, facts);
   }
 
   /** Distinct permission keys the principal currently holds (for /auth/me). */
@@ -79,6 +91,66 @@ export class AuthzService {
     );
   }
 
+  /**
+   * Fill a target's academic ancestry so containment can be decided by id match.
+   * Given any one of programme/department/faculty, resolves the units above it
+   * (a programme sits in a department, in a faculty, maybe in a school). A faculty
+   * directly under the tenant has a null school, which simply never matches a
+   * school-scoped grant.
+   */
+  private async resolveAcademicAncestry(
+    tenantId: string,
+    target: AccessTarget,
+  ): Promise<AccessTarget> {
+    const out: AccessTarget = { ...target };
+    return withTenant({ tenantId }, async (db) => {
+      const first = <T>(r: unknown): T | undefined =>
+        (r as { rows: T[] }).rows[0];
+
+      if (target.programmeId) {
+        const row = first<AncestryRow>(
+          await db.execute(sql`
+            SELECT d.id AS department_id, f.id AS faculty_id, f.school_id AS school_id
+            FROM programme p
+            JOIN department d ON d.id = p.department_id
+            JOIN faculty f    ON f.id = d.faculty_id
+            WHERE p.id = ${target.programmeId} AND p.tenant_id = ${tenantId}
+            LIMIT 1
+          `),
+        );
+        if (row) {
+          out.departmentId ??= row.department_id ?? undefined;
+          out.facultyId ??= row.faculty_id ?? undefined;
+          out.schoolId ??= row.school_id ?? undefined;
+        }
+      } else if (target.departmentId) {
+        const row = first<AncestryRow>(
+          await db.execute(sql`
+            SELECT f.id AS faculty_id, f.school_id AS school_id
+            FROM department d
+            JOIN faculty f ON f.id = d.faculty_id
+            WHERE d.id = ${target.departmentId} AND d.tenant_id = ${tenantId}
+            LIMIT 1
+          `),
+        );
+        if (row) {
+          out.facultyId ??= row.faculty_id ?? undefined;
+          out.schoolId ??= row.school_id ?? undefined;
+        }
+      } else if (target.facultyId) {
+        const row = first<AncestryRow>(
+          await db.execute(sql`
+            SELECT school_id FROM faculty
+            WHERE id = ${target.facultyId} AND tenant_id = ${tenantId}
+            LIMIT 1
+          `),
+        );
+        if (row) out.schoolId ??= row.school_id ?? undefined;
+      }
+      return out;
+    });
+  }
+
   /** Is there a granted, in-effect guardian/sponsor link from caller to target? */
   private async hasConsentedGuardianLink(
     principal: Principal,
@@ -108,6 +180,12 @@ interface RawGrant {
   scope_ref_id: string | null;
   requires_step_up: boolean;
   relationship_predicate: RelationshipPredicate | null;
+}
+
+interface AncestryRow {
+  department_id?: string | null;
+  faculty_id?: string | null;
+  school_id?: string | null;
 }
 
 function toGrant(r: RawGrant): Grant {
@@ -153,6 +231,9 @@ export function evaluate(
   return { allowed: false, reason };
 }
 
+/** Academic scope levels, broadest to narrowest. A grant at one covers the levels below. */
+const ACADEMIC_SCOPES: ScopeType[] = ["school", "faculty", "department", "programme"];
+
 function scopeCovers(
   g: Grant,
   target: AccessTarget,
@@ -165,19 +246,39 @@ function scopeCovers(
       return target.personId === principal.personId
         ? { ok: true, reason: "" }
         : { ok: false, reason: "grant is self-scoped; target is a different person" };
+    case "school":
+      return matchUnit(target.schoolId, g.scopeRefId, "school");
     case "faculty":
+      return matchUnit(target.facultyId, g.scopeRefId, "faculty");
     case "department":
+      return matchUnit(target.departmentId, g.scopeRefId, "department");
     case "programme":
-      // A faculty grant must also cover the departments/programmes beneath it;
-      // that containment needs the academic structure that lands in Phase 1.
-      // Until then we deny rather than resolve a partial (and misleading) match.
-      return {
-        ok: false,
-        reason: `${g.scopeType}-scoped grants are resolved once academic structure lands in Phase 1`,
-      };
+      return matchUnit(target.programmeId, g.scopeRefId, "programme");
     default:
       return { ok: false, reason: `unknown scope type '${g.scopeType}'` };
   }
+}
+
+/**
+ * Containment by id: after ancestry resolution the target carries the ids of the
+ * units above it, so a grant at level X is satisfied when the target's X-level id
+ * equals the grant's ref. A target with no id at that level (e.g. a person with no
+ * academic placement yet) is not covered — that resolution lands with Phase 1.
+ */
+function matchUnit(
+  targetUnitId: string | undefined,
+  scopeRefId: string | null,
+  level: string,
+): { ok: boolean; reason: string } {
+  if (!targetUnitId) {
+    return {
+      ok: false,
+      reason: `${level}-scoped grant cannot resolve this target (no ${level} placement; person-level academic scope lands with Phase 1 student records)`,
+    };
+  }
+  return targetUnitId === scopeRefId
+    ? { ok: true, reason: "" }
+    : { ok: false, reason: `${level}-scoped grant does not cover this target` };
 }
 
 function predicateHolds(

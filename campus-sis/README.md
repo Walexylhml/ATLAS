@@ -36,7 +36,7 @@ supporting specifications needed to pick the project up at any time in the futur
 | **Phase** | Phase 0 — Foundation (build started) |
 | **Team** | Whale (Adebayo Olawale) — founder/product; Claude — co-builder |
 | **Last updated** | 2026-10-20 |
-| **Next milestone** | Auth (OTP) + RBAC/ABAC guards landed → academic structure & grading next |
+| **Next milestone** | Academic structure (School→Faculty→Dept) + scope containment + grading config landed → curriculum, course registration & student records (Phase 1) next |
 
 > **Build started.** Stack locked (NestJS/TS · PostgreSQL+RLS · Render · Flutterwave — see
 > [`docs/adr/`](docs/adr/)). The runnable code lives in [`apps/api`](apps/api/); what to open
@@ -58,6 +58,7 @@ Read in this order. Each document stands alone but they are designed to be read 
 | 07 | [`docs/07-roadmap.md`](docs/07-roadmap.md) | Phased build plan and MVP definition |
 | 08 | [`docs/08-open-questions.md`](docs/08-open-questions.md) | Decisions still pending |
 | 09 | [`docs/09-setup-and-resources.md`](docs/09-setup-and-resources.md) | **Setup & resources** — accounts, services, secrets, costs, local dev |
+| 10 | [`docs/10-academic-structure-and-results.md`](docs/10-academic-structure-and-results.md) | **Academic structure** (School→Faculty→Dept), access scoping, the grade upload/edit/approval lifecycle & bulk upload management |
 | — | [`docs/adr/`](docs/adr/) | Locked architecture decisions (ADRs) |
 | — | [`apps/api/`](apps/api/) | **ATLAS Core** — the runnable NestJS API (Phase 0) |
 | — | [`docs/glossary.md`](docs/glossary.md) | Nigerian HE + PeopleSoft terminology |

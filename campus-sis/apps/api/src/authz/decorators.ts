@@ -13,6 +13,7 @@ export interface RequirePermissionOptions {
   permission: string;
   /** Route param names that identify the target, so the guard can build scope. */
   personIdParam?: string;
+  schoolIdParam?: string;
   facultyIdParam?: string;
   departmentIdParam?: string;
   programmeIdParam?: string;

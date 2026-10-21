@@ -60,15 +60,55 @@ describe("authz evaluate()", () => {
     expect(evaluate(g, {}, stepped, noFacts).allowed).toBe(true);
   });
 
-  it("defers faculty/department/programme scope to Phase 1", () => {
+  it("faculty scope covers a target in that faculty and denies others", () => {
+    const g = [grant({ scopeType: "faculty", scopeRefId: "fac-1" })];
+    expect(evaluate(g, { facultyId: "fac-1" }, principal, noFacts).allowed).toBe(true);
+    const denied = evaluate(g, { facultyId: "fac-2" }, principal, noFacts);
+    expect(denied.allowed).toBe(false);
+    expect(denied.reason).toMatch(/does not cover/);
+  });
+
+  it("faculty scope contains a nested department/programme (ancestry resolved onto target)", () => {
+    // authorize() fills facultyId from a programme/department target before evaluate().
+    const g = [grant({ scopeType: "faculty", scopeRefId: "fac-1" })];
+    expect(
+      evaluate(g, { departmentId: "dept-9", facultyId: "fac-1" }, principal, noFacts).allowed,
+    ).toBe(true);
+    expect(
+      evaluate(
+        g,
+        { programmeId: "prog-3", departmentId: "dept-9", facultyId: "fac-1" },
+        principal,
+        noFacts,
+      ).allowed,
+    ).toBe(true);
+  });
+
+  it("school scope contains everything beneath it", () => {
+    const g = [grant({ scopeType: "school", scopeRefId: "sch-1" })];
+    expect(
+      evaluate(g, { facultyId: "fac-1", schoolId: "sch-1" }, principal, noFacts).allowed,
+    ).toBe(true);
+    expect(
+      evaluate(g, { facultyId: "fac-9", schoolId: "sch-2" }, principal, noFacts).allowed,
+    ).toBe(false);
+  });
+
+  it("department scope matches only its own department", () => {
+    const g = [grant({ scopeType: "department", scopeRefId: "dept-1" })];
+    expect(evaluate(g, { departmentId: "dept-1" }, principal, noFacts).allowed).toBe(true);
+    expect(evaluate(g, { departmentId: "dept-2" }, principal, noFacts).allowed).toBe(false);
+  });
+
+  it("an academic-scoped grant denies a target with no placement at that level", () => {
     const d = evaluate(
       [grant({ scopeType: "faculty", scopeRefId: "fac-1" })],
-      { facultyId: "fac-1" },
+      { personId: "some-person" },
       principal,
       noFacts,
     );
     expect(d.allowed).toBe(false);
-    expect(d.reason).toMatch(/Phase 1/);
+    expect(d.reason).toMatch(/no faculty placement|Phase 1 student records/);
   });
 
   it("denies predicates not yet implemented", () => {

@@ -10,7 +10,14 @@
  * Default posture is deny.
  */
 
-export const SCOPE_TYPES = ["tenant", "faculty", "department", "programme", "self"] as const;
+export const SCOPE_TYPES = [
+  "tenant",
+  "school",
+  "faculty",
+  "department",
+  "programme",
+  "self",
+] as const;
 export type ScopeType = (typeof SCOPE_TYPES)[number];
 
 export type RelationshipPredicate =
@@ -37,6 +44,10 @@ export const PERMISSIONS = {
   ACCOUNT_MANAGE: "account.manage",
   ROLE_ASSIGN: "role.assign",
   AUDIT_READ: "audit.read",
+  /** Read academic structure, calendar and grading configuration. */
+  ACADEMIC_READ: "academic.read",
+  /** Create/edit academic structure (schools, faculties, departments, programmes). */
+  ACADEMIC_MANAGE: "academic.manage",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -53,6 +64,7 @@ export interface Grant {
 /** What the caller is trying to act on. IDs are supplied by the guard from the route. */
 export interface AccessTarget {
   personId?: string;
+  schoolId?: string;
   facultyId?: string;
   departmentId?: string;
   programmeId?: string;

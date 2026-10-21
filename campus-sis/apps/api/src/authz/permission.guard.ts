@@ -54,6 +54,7 @@ function buildTarget(
 ): AccessTarget {
   const target: AccessTarget = {};
   if (options.personIdParam) target.personId = params[options.personIdParam];
+  if (options.schoolIdParam) target.schoolId = params[options.schoolIdParam];
   if (options.facultyIdParam) target.facultyId = params[options.facultyIdParam];
   if (options.departmentIdParam) target.departmentId = params[options.departmentIdParam];
   if (options.programmeIdParam) target.programmeId = params[options.programmeIdParam];
