@@ -1,0 +1,38 @@
+import { Module, type MiddlewareConsumer, type NestModule } from "@nestjs/common";
+import { LoggerModule } from "nestjs-pino";
+import { DatabaseModule } from "./database/database.module.js";
+import { HealthModule } from "./health/health.module.js";
+import { TenantMiddleware } from "./tenancy/tenant.middleware.js";
+import { loadEnv } from "./config/env.js";
+import { currentContext } from "./tenancy/tenant-context.js";
+
+const env = loadEnv();
+
+@Module({
+  imports: [
+    LoggerModule.forRoot({
+      pinoHttp: {
+        level: env.LOG_LEVEL,
+        // Pretty logs in dev; structured JSON everywhere else.
+        transport:
+          env.NODE_ENV === "development" ? { target: "pino-pretty" } : undefined,
+        // Stamp every log line with the request + tenant context.
+        customProps: () => {
+          const ctx = currentContext();
+          return {
+            requestId: ctx?.requestId,
+            tenantId: ctx?.tenantId,
+          };
+        },
+        redact: ["req.headers.authorization", "req.headers.cookie"],
+      },
+    }),
+    DatabaseModule,
+    HealthModule,
+  ],
+})
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(TenantMiddleware).forRoutes("{*path}");
+  }
+}

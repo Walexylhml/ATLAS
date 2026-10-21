@@ -33,10 +33,14 @@ supporting specifications needed to pick the project up at any time in the futur
 
 | | |
 |---|---|
-| **Phase** | Specification / BRD (pre-build) |
+| **Phase** | Phase 0 — Foundation (build started) |
 | **Team** | Whale (Adebayo Olawale) — founder/product; Claude — co-builder |
 | **Last updated** | 2026-10-20 |
-| **Next milestone** | BRD sign-off → data-model deep dive → architecture spike |
+| **Next milestone** | Phase 0 spine merged → auth (OTP) + RBAC guards → academic structure & grading |
+
+> **Build started.** Stack locked (NestJS/TS · PostgreSQL+RLS · Render · Flutterwave — see
+> [`docs/adr/`](docs/adr/)). The runnable code lives in [`apps/api`](apps/api/); what to open
+> and provision is in [`docs/09-setup-and-resources.md`](docs/09-setup-and-resources.md).
 
 ## How to navigate
 
@@ -53,6 +57,9 @@ Read in this order. Each document stands alone but they are designed to be read 
 | 06 | [`docs/06-architecture.md`](docs/06-architecture.md) | High-level architecture, multi-tenancy strategy, tech stack, offline/sync |
 | 07 | [`docs/07-roadmap.md`](docs/07-roadmap.md) | Phased build plan and MVP definition |
 | 08 | [`docs/08-open-questions.md`](docs/08-open-questions.md) | Decisions still pending |
+| 09 | [`docs/09-setup-and-resources.md`](docs/09-setup-and-resources.md) | **Setup & resources** — accounts, services, secrets, costs, local dev |
+| — | [`docs/adr/`](docs/adr/) | Locked architecture decisions (ADRs) |
+| — | [`apps/api/`](apps/api/) | **ATLAS Core** — the runnable NestJS API (Phase 0) |
 | — | [`docs/glossary.md`](docs/glossary.md) | Nigerian HE + PeopleSoft terminology |
 
 ## How to resume work (future pickup)

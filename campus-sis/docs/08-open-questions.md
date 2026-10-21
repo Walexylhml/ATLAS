@@ -22,18 +22,21 @@ it as an ADR in `docs/adr/` and update the relevant doc.
 
 ## Architecture & tech
 
-- **[Q-ARCH-1] Backend language/framework.** TypeScript/Node (NestJS), Python
-  (Django/FastAPI), or Java/Kotlin (Spring)? Decide on team fluency + hiring. — _Whale/Claude_
-  — **open**
-- **[Q-ARCH-2] Hosting & data residency.** Which provider/region? Do target institutions
-  require in-Nigeria hosting now, or is that a later-tier concern? — _Whale_ — **open**
+- **[Q-ARCH-1] Backend language/framework.** ~~TypeScript/Node (NestJS), Python
+  (Django/FastAPI), or Java/Kotlin (Spring)?~~ **RESOLVED → NestJS + TypeScript. See
+  [ADR-0001](adr/0001-backend-stack.md).** — _Whale/Claude_ — **✅ closed**
+- **[Q-ARCH-2] Hosting & data residency.** ~~Which provider/region?~~ **RESOLVED (partially)
+  → Render/Railway to start; in-country residency deferred to the dedicated tier. See
+  [ADR-0003](adr/0003-hosting.md).** Residency timing for a specific flagship tenant stays
+  open. — _Whale_ — **✅ mostly closed**
 - **[Q-ARCH-3] PWA framework.** React vs Svelte vs other, under the low-end-Android
   performance budget. — _Claude_ — **open**
 - **[Q-ARCH-4] JAMB/CAPS integration mechanism.** File import vs API — what does JAMB
   actually expose to institutions today? Needs verification. — _Whale_ — **open**
-- **[Q-ARCH-5] First payment gateway.** Which of Remita/Paystack/Flutterwave/Interswitch to
-  integrate first for the pilot? (Likely driven by the pilot institution's existing rail.)
-  — _Whale_ — **open**
+- **[Q-ARCH-5] First payment gateway.** **Reference adapter RESOLVED → Flutterwave (founder's
+  rail). See [ADR-0004](adr/0004-first-payment-gateway.md).** The pilot institution's *actual*
+  rail (often Remita for federal/state) stays open and is additive via the `PaymentGateway`
+  interface. — _Whale_ — **◐ partially closed**
 - **[Q-ARCH-6] SMS aggregator(s).** For reliable notifications/USSD fallback. — _Whale_ —
   **open**
 
@@ -64,3 +67,9 @@ it as an ADR in `docs/adr/` and update the relevant doc.
   (recommendation)
 - **[D-4] Delivery shape:** full-SIS architecture, phased delivery; MVP = Phase 0 + Phase 1
   (fees + registration). ✅
+- **[D-5] Backend stack:** NestJS + TypeScript, modular monolith. [ADR-0001](adr/0001-backend-stack.md). ✅
+- **[D-6] Persistence:** PostgreSQL + Drizzle; SQL-first migrations with RLS enforcing tenant
+  isolation. [ADR-0002](adr/0002-persistence-and-rls.md). ✅
+- **[D-7] Hosting:** Render/Railway for the pilot; residency-ready for a later dedicated tier.
+  [ADR-0003](adr/0003-hosting.md). ✅
+- **[D-8] First payment adapter:** Flutterwave. [ADR-0004](adr/0004-first-payment-gateway.md). ✅

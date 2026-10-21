@@ -1,0 +1,61 @@
+# Render Blueprint — provisions the Phase 0 stack in one click from the repo.
+# https://render.com/docs/blueprint-spec
+#
+# Creates: managed Postgres, the API web service, and the outbox worker.
+# Secrets (JWT_SECRET, Flutterwave keys, storage creds) are set in the Render
+# dashboard, NOT committed here.
+databases:
+  - name: atlas-db
+    databaseName: atlas
+    user: atlas_app
+    plan: basic-256mb # bump as the pilot grows
+    postgresMajorVersion: "16"
+
+services:
+  - type: web
+    name: atlas-api
+    runtime: node
+    plan: starter
+    rootDir: campus-sis
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @atlas/api build
+    # Migrations run on every deploy before the server starts (idempotent).
+    startCommand: pnpm --filter @atlas/api db:migrate && node apps/api/dist/main.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: atlas-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: LOG_LEVEL
+        value: info
+      - key: FLW_SECRET_KEY
+        sync: false
+      - key: FLW_WEBHOOK_SECRET_HASH
+        sync: false
+      - key: STORAGE_ENDPOINT
+        sync: false
+      - key: STORAGE_BUCKET
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+
+  - type: worker
+    name: atlas-outbox
+    runtime: node
+    plan: starter
+    rootDir: campus-sis
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @atlas/api build
+    startCommand: node apps/api/dist/worker.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: atlas-db
+          property: connectionString
+      - key: LOG_LEVEL
+        value: info
