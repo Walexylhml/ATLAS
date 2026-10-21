@@ -2,6 +2,9 @@ import { Module, type MiddlewareConsumer, type NestModule } from "@nestjs/common
 import { LoggerModule } from "nestjs-pino";
 import { DatabaseModule } from "./database/database.module.js";
 import { HealthModule } from "./health/health.module.js";
+import { AuthModule } from "./auth/auth.module.js";
+import { AuthzModule } from "./authz/authz.module.js";
+import { DirectoryModule } from "./directory/directory.module.js";
 import { TenantMiddleware } from "./tenancy/tenant.middleware.js";
 import { loadEnv } from "./config/env.js";
 import { currentContext } from "./tenancy/tenant-context.js";
@@ -28,6 +31,9 @@ const env = loadEnv();
       },
     }),
     DatabaseModule,
+    AuthzModule,
+    AuthModule,
+    DirectoryModule,
     HealthModule,
   ],
 })
