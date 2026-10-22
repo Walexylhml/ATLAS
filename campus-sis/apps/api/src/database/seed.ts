@@ -77,6 +77,8 @@ async function run(): Promise<void> {
       ["finance.read", "finance", "read", null],
       ["finance.manage", "finance", "manage", null],
       ["payment.initiate", "payment", "initiate", null],
+      ["hold.read", "hold", "read", null],
+      ["hold.manage", "hold", "manage", null],
     ];
     for (const [key, resource, action, predicate] of perms) {
       await client.query(
@@ -112,21 +114,23 @@ async function run(): Promise<void> {
           "registration.read",
           "finance.read",
           "finance.manage",
+          "hold.read",
+          "hold.manage",
         ],
       ],
       [
         "registrar",
-        ["person.read", "person.write", "audit.read", "academic.manage", "student.read", "student.manage", "course.manage", "offering.manage", "registration.register", "registration.read", "finance.read", "finance.manage"],
+        ["person.read", "person.write", "audit.read", "academic.manage", "student.read", "student.manage", "course.manage", "offering.manage", "registration.register", "registration.read", "finance.read", "finance.manage", "hold.read", "hold.manage"],
       ],
-      // Bursar / finance owns the money.
-      ["bursar", ["person.read", "student.read", "finance.read", "finance.manage"]],
+      // Bursar / finance owns the money — and places/lifts financial holds.
+      ["bursar", ["person.read", "student.read", "finance.read", "finance.manage", "hold.read", "hold.manage"]],
       // Manage is scope-gated: provost over a school, dean over a faculty, HOD over a department.
-      ["provost", ["person.read", "academic.manage", "student.read", "student.manage", "course.manage", "offering.manage", "registration.register", "registration.read", "finance.read"]],
-      ["dean", ["person.read", "academic.manage", "student.read", "student.manage", "course.manage", "offering.manage", "registration.register", "registration.read", "finance.read"]],
-      ["hod", ["person.read", "academic.manage", "student.read", "student.manage", "course.manage", "offering.manage", "registration.register", "registration.read", "finance.read"]],
+      ["provost", ["person.read", "academic.manage", "student.read", "student.manage", "course.manage", "offering.manage", "registration.register", "registration.read", "finance.read", "hold.read", "hold.manage"]],
+      ["dean", ["person.read", "academic.manage", "student.read", "student.manage", "course.manage", "offering.manage", "registration.register", "registration.read", "finance.read", "hold.read", "hold.manage"]],
+      ["hod", ["person.read", "academic.manage", "student.read", "student.manage", "course.manage", "offering.manage", "registration.register", "registration.read", "finance.read", "hold.read", "hold.manage"]],
       ["lecturer", ["person.read"]],
-      // A student reads their own record, self-registers, and reads/pays their own fees (self scope).
-      ["student", ["person.read", "student.read", "registration.register", "registration.read", "finance.read", "payment.initiate"]],
+      // A student reads their own record, self-registers, reads/pays their own fees, and reads their own holds (self scope).
+      ["student", ["person.read", "student.read", "registration.register", "registration.read", "finance.read", "payment.initiate", "hold.read"]],
       ["parent", ["person.read.child"]],
     ];
     for (const [roleKey, permKeys] of grants) {
@@ -428,6 +432,9 @@ async function run(): Promise<void> {
     const configs: Array<[string, string, string]> = [
       ["academic", "ca_exam_weighting", JSON.stringify({ ca: 40, exam: 60 })],
       ["academic", "school_level_label", JSON.stringify("College")],
+      // Full payment required before registration (0 = any outstanding balance
+      // raises a financial hold). A tenant can raise this to allow part-payment.
+      ["finance", "registration_hold_threshold_minor", JSON.stringify(0)],
     ];
     for (const [ns, key, value] of configs) {
       await client.query(

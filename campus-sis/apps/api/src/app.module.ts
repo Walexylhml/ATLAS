@@ -10,6 +10,7 @@ import { StudentsModule } from "./students/students.module.js";
 import { CoursesModule } from "./courses/courses.module.js";
 import { RegistrationModule } from "./registration/registration.module.js";
 import { FinanceModule } from "./finance/finance.module.js";
+import { HoldsModule } from "./holds/holds.module.js";
 import { ConfigModule } from "./config/config.module.js";
 import { TenantMiddleware } from "./tenancy/tenant.middleware.js";
 import { loadEnv } from "./config/env.js";
@@ -46,6 +47,7 @@ const env = loadEnv();
     CoursesModule,
     RegistrationModule,
     FinanceModule,
+    HoldsModule,
     HealthModule,
   ],
 })

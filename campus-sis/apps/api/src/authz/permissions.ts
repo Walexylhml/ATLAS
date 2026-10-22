@@ -68,6 +68,10 @@ export const PERMISSIONS = {
   FINANCE_MANAGE: "finance.manage",
   /** Initiate a payment against an invoice (students pay their own). */
   PAYMENT_INITIATE: "payment.initiate",
+  /** Read a student's holds (students read their own). */
+  HOLD_READ: "hold.read",
+  /** Place and lift student holds. */
+  HOLD_MANAGE: "hold.manage",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

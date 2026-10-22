@@ -26,6 +26,8 @@ import {
 import { CurrentPrincipal, RequirePermission } from "../authz/decorators.js";
 import { PERMISSIONS } from "../authz/permissions.js";
 import type { Principal } from "../authz/principal.js";
+import { HoldsModule } from "../holds/holds.module.js";
+import { blockingHolds, HoldsService } from "../holds/holds.service.js";
 
 const CreateOfferingSchema = z.object({
   sessionId: z.string().uuid().optional(),
@@ -122,8 +124,17 @@ export class OfferingsService {
 
 @Injectable()
 export class RegistrationService {
-  /** Register a student for an offering. Validates the student is active and the offering open; rejects duplicates. */
+  constructor(private readonly holds: HoldsService) {}
+
+  /**
+   * Register a student for an offering. Validates the student is active and the
+   * offering open, enforces holds (financial + manual), and rejects duplicates.
+   */
   async register(tenantId: string, actorId: string, studentId: string, offeringId: string) {
+    // Threshold is tenant config (its own read); the holds themselves are then
+    // evaluated inside the registration transaction for a consistent decision.
+    const thresholdMinor = await this.holds.financialThreshold(tenantId);
+
     return withTenant({ tenantId, actorId }, async (db) => {
       const [stu] = await db
         .select({ id: student.id, status: student.status })
@@ -132,6 +143,18 @@ export class RegistrationService {
         .limit(1);
       if (!stu) throw new NotFoundException("Student not found");
       if (stu.status !== "active") throw new BadRequestException("Student is not active");
+
+      // Registration gate: any active blocking hold stops enrolment. The error
+      // lists them so the caller (often the student) knows exactly what to clear.
+      const effective = await this.holds.effectiveHolds(db, tenantId, studentId, thresholdMinor);
+      const blocking = blockingHolds(effective);
+      if (blocking.length > 0) {
+        throw new ConflictException({
+          message: "Registration is blocked by one or more holds",
+          code: "registration_blocked_by_holds",
+          holds: blocking.map((h) => ({ type: h.type, reason: h.reason, auto: h.auto })),
+        });
+      }
 
       const [off] = await db
         .select({ id: courseOffering.id, status: courseOffering.status })
@@ -285,6 +308,7 @@ export class RegistrationController {
 }
 
 @Module({
+  imports: [HoldsModule],
   controllers: [OfferingsController, RegistrationController],
   providers: [OfferingsService, RegistrationService],
   exports: [OfferingsService, RegistrationService],
