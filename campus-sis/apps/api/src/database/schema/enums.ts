@@ -91,6 +91,18 @@ export const paymentStatusEnum = pgEnum("payment_status", [
 ]);
 export const paymentProviderEnum = pgEnum("payment_provider", ["flutterwave", "manual"]);
 
+// Holds (negative service indicators)
+export const holdTypeEnum = pgEnum("hold_type", [
+  "financial",
+  "library",
+  "disciplinary",
+  "medical",
+  "academic",
+  "documents",
+  "other",
+]);
+export const holdStatusEnum = pgEnum("hold_status", ["active", "lifted"]);
+
 // Cross-cutting
 export const actorTypeEnum = pgEnum("actor_type", ["platform", "user", "system"]);
 export const outboxStatusEnum = pgEnum("outbox_status", ["pending", "dispatched", "failed"]);
