@@ -71,6 +71,12 @@ async function run(): Promise<void> {
       ["student.manage", "student", "manage", null],
       ["course.read", "course", "read", null],
       ["course.manage", "course", "manage", null],
+      ["offering.manage", "offering", "manage", null],
+      ["registration.register", "registration", "register", null],
+      ["registration.read", "registration", "read", null],
+      ["finance.read", "finance", "read", null],
+      ["finance.manage", "finance", "manage", null],
+      ["payment.initiate", "payment", "initiate", null],
     ];
     for (const [key, resource, action, predicate] of perms) {
       await client.query(
@@ -101,20 +107,26 @@ async function run(): Promise<void> {
           "student.read",
           "student.manage",
           "course.manage",
+          "offering.manage",
+          "registration.register",
+          "registration.read",
+          "finance.read",
+          "finance.manage",
         ],
       ],
       [
         "registrar",
-        ["person.read", "person.write", "audit.read", "academic.manage", "student.read", "student.manage", "course.manage"],
+        ["person.read", "person.write", "audit.read", "academic.manage", "student.read", "student.manage", "course.manage", "offering.manage", "registration.register", "registration.read", "finance.read", "finance.manage"],
       ],
-      ["bursar", ["person.read"]],
+      // Bursar / finance owns the money.
+      ["bursar", ["person.read", "student.read", "finance.read", "finance.manage"]],
       // Manage is scope-gated: provost over a school, dean over a faculty, HOD over a department.
-      ["provost", ["person.read", "academic.manage", "student.read", "student.manage", "course.manage"]],
-      ["dean", ["person.read", "academic.manage", "student.read", "student.manage", "course.manage"]],
-      ["hod", ["person.read", "academic.manage", "student.read", "student.manage", "course.manage"]],
+      ["provost", ["person.read", "academic.manage", "student.read", "student.manage", "course.manage", "offering.manage", "registration.register", "registration.read", "finance.read"]],
+      ["dean", ["person.read", "academic.manage", "student.read", "student.manage", "course.manage", "offering.manage", "registration.register", "registration.read", "finance.read"]],
+      ["hod", ["person.read", "academic.manage", "student.read", "student.manage", "course.manage", "offering.manage", "registration.register", "registration.read", "finance.read"]],
       ["lecturer", ["person.read"]],
-      // A student may read their own record (self scope).
-      ["student", ["person.read", "student.read"]],
+      // A student reads their own record, self-registers, and reads/pays their own fees (self scope).
+      ["student", ["person.read", "student.read", "registration.register", "registration.read", "finance.read", "payment.initiate"]],
       ["parent", ["person.read.child"]],
     ];
     for (const [roleKey, permKeys] of grants) {
@@ -435,6 +447,11 @@ async function run(): Promise<void> {
        WHERE NOT EXISTS (SELECT 1 FROM student WHERE tenant_id = $2 AND person_id = $3)`,
       [newId(), tenantId, studentPerson, cscProg, session],
     );
+    const studentRow = await client.query<{ id: string }>(
+      `SELECT id FROM student WHERE tenant_id = $1 AND person_id = $2`,
+      [tenantId, studentPerson],
+    );
+    const demoStudentId = studentRow.rows[0]?.id;
 
     // --- Course catalogue: a few CSC/MTH courses ---
     const courses: Array<[string, string, string, number, number, string, string]> = [
@@ -442,13 +459,86 @@ async function run(): Promise<void> {
       [csc, "CSC102", "Introduction to Programming", 3, 100, "second", "core"],
       [mth, "MTH101", "Elementary Mathematics I", 3, 100, "first", "core"],
     ];
+    const courseIds: Record<string, string> = {};
     for (const [dept, code, title, units, level, sem, type] of courses) {
-      await client.query(
+      const r = await one(
         `INSERT INTO course (id, tenant_id, department_id, code, title, credit_units, level, semester, type)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         ON CONFLICT (tenant_id, code) DO UPDATE SET title = EXCLUDED.title`,
+         ON CONFLICT (tenant_id, code) DO UPDATE SET title = EXCLUDED.title RETURNING id`,
         [newId(), tenantId, dept, code, title, units, level, sem, type],
       );
+      courseIds[code] = r;
+    }
+
+    // --- Course offerings for the current session + a demo registration ---
+    const offeringIds: Record<string, string> = {};
+    for (const [, code, , , , sem] of courses) {
+      offeringIds[code] = await one(
+        `INSERT INTO course_offering (id, tenant_id, course_id, session_id, semester, status)
+         VALUES ($1, $2, $3, $4, $5, 'open')
+         ON CONFLICT (course_id, session_id, semester) DO UPDATE SET status = 'open' RETURNING id`,
+        [newId(), tenantId, courseIds[code], session, sem],
+      );
+    }
+    if (demoStudentId) {
+      await client.query(
+        `INSERT INTO course_registration (id, tenant_id, student_id, offering_id)
+         SELECT $1, $2, $3, $4
+         WHERE NOT EXISTS (
+           SELECT 1 FROM course_registration WHERE tenant_id = $2 AND student_id = $3 AND offering_id = $4
+         )`,
+        [newId(), tenantId, demoStudentId, offeringIds["CSC101"]],
+      );
+    }
+
+    // --- Student financials: a fee structure + an issued invoice (amounts in kobo) ---
+    const feeStructureId = await one(
+      `INSERT INTO fee_structure (id, tenant_id, name, session_id, programme_id, level, currency)
+       VALUES ($1, $2, '100 Level Fees 2025/2026', $3, $4, 100, 'NGN')
+       ON CONFLICT (tenant_id, name) DO UPDATE SET session_id = EXCLUDED.session_id RETURNING id`,
+      [newId(), tenantId, session, cscProg],
+    );
+    const feeItems: Array<[string, number]> = [
+      ["Tuition", 10_000_000], // ₦100,000
+      ["Acceptance Fee", 5_000_000], // ₦50,000
+      ["ICT Levy", 200_000], // ₦2,000
+    ];
+    const itemCount = await client.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM fee_item WHERE fee_structure_id = $1`,
+      [feeStructureId],
+    );
+    if ((itemCount.rows[0]?.n ?? 0) === 0) {
+      for (const [name, amt] of feeItems) {
+        await client.query(
+          `INSERT INTO fee_item (id, tenant_id, fee_structure_id, name, amount_minor) VALUES ($1, $2, $3, $4, $5)`,
+          [newId(), tenantId, feeStructureId, name, amt],
+        );
+      }
+    }
+    if (demoStudentId) {
+      const total = feeItems.reduce((s, [, a]) => s + a, 0);
+      const existingInv = await client.query(
+        `SELECT id FROM invoice WHERE tenant_id = $1 AND student_id = $2 AND fee_structure_id = $3 AND status <> 'void'`,
+        [tenantId, demoStudentId, feeStructureId],
+      );
+      if (existingInv.rows.length === 0) {
+        const invId = await one(
+          `INSERT INTO invoice (id, tenant_id, student_id, session_id, fee_structure_id, status, currency, total_minor, balance_minor, issued_at)
+           VALUES ($1, $2, $3, $4, $5, 'issued', 'NGN', $6, $6, now()) RETURNING id`,
+          [newId(), tenantId, demoStudentId, session, feeStructureId, total],
+        );
+        for (const [name, amt] of feeItems) {
+          await client.query(
+            `INSERT INTO invoice_line (id, tenant_id, invoice_id, description, amount_minor) VALUES ($1, $2, $3, $4, $5)`,
+            [newId(), tenantId, invId, name, amt],
+          );
+        }
+        await client.query(
+          `INSERT INTO ledger_entry (id, tenant_id, student_id, invoice_id, type, amount_minor, currency, memo, reference)
+           VALUES ($1, $2, $3, $4, 'charge', $5, 'NGN', $6, $7)`,
+          [newId(), tenantId, demoStudentId, invId, total, "100 Level Fees 2025/2026", invId],
+        );
+      }
     }
   });
 

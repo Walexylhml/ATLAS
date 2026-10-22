@@ -61,6 +61,35 @@ export const studentStatusEnum = pgEnum("student_status", [
   "graduated",
   "suspended",
 ]);
+export const offeringStatusEnum = pgEnum("offering_status", ["open", "closed"]);
+export const registrationStatusEnum = pgEnum("registration_status", [
+  "registered",
+  "dropped",
+  "approved",
+]);
+
+// Financials
+export const invoiceStatusEnum = pgEnum("invoice_status", [
+  "draft",
+  "issued",
+  "part_paid",
+  "paid",
+  "void",
+]);
+export const ledgerEntryTypeEnum = pgEnum("ledger_entry_type", [
+  "charge",
+  "payment",
+  "adjustment",
+  "reversal",
+  "waiver",
+]);
+export const paymentStatusEnum = pgEnum("payment_status", [
+  "pending",
+  "successful",
+  "failed",
+  "reversed",
+]);
+export const paymentProviderEnum = pgEnum("payment_provider", ["flutterwave", "manual"]);
 
 // Cross-cutting
 export const actorTypeEnum = pgEnum("actor_type", ["platform", "user", "system"]);
