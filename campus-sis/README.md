@@ -59,6 +59,7 @@ Read in this order. Each document stands alone but they are designed to be read 
 | 08 | [`docs/08-open-questions.md`](docs/08-open-questions.md) | Decisions still pending |
 | 09 | [`docs/09-setup-and-resources.md`](docs/09-setup-and-resources.md) | **Setup & resources** — accounts, services, secrets, costs, local dev |
 | 10 | [`docs/10-academic-structure-and-results.md`](docs/10-academic-structure-and-results.md) | **Academic structure** (School→Faculty→Dept), access scoping, the grade upload/edit/approval lifecycle & bulk upload management |
+| 11 | [`docs/11-interoperability-and-spire-gap.md`](docs/11-interoperability-and-spire-gap.md) | **SPIRE gap analysis** + the **interoperability architecture**: partner APIs, verifiable transcripts, and secure capability links for cross-school result upload & record transfer |
 | — | [`docs/adr/`](docs/adr/) | Locked architecture decisions (ADRs) |
 | — | [`apps/api/`](apps/api/) | **ATLAS Core** — the runnable NestJS API (Phase 0) |
 | — | [`docs/glossary.md`](docs/glossary.md) | Nigerian HE + PeopleSoft terminology |
